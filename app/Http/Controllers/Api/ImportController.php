@@ -8,6 +8,7 @@ use App\Services\Import\FieldAliases;
 use App\Services\Import\SpreadsheetReader;
 use App\Support\FieldKey;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -89,15 +90,37 @@ class ImportController extends Controller
         $mode = $validated['mode'];
         $uniqueField = $validated['unique_field'] ?? null;
 
+        set_time_limit(300);
+
         $created = 0;
         $updated = 0;
         $skipped = 0;
         $errors = [];
 
+        // Look up all potential duplicates in one query instead of one
+        // per row - at a few thousand rows, a per-row whereRaw() JSON scan
+        // means thousands of individual round-trips, and it only gets
+        // slower as more rows accumulate from earlier imports.
+        $existingByValue = [];
+        if ($uniqueField) {
+            $values = array_values(array_unique(array_filter(array_column($mapped, $uniqueField), fn ($v) => $v !== null && $v !== '')));
+            if ($values !== []) {
+                $placeholders = implode(',', array_fill(0, count($values), '?'));
+                $existingByValue = IdRecord::query()
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(data, ?)) IN ({$placeholders})", ['$."'.$uniqueField.'"', ...$values])
+                    ->get()
+                    ->keyBy(fn (IdRecord $r) => $r->data[$uniqueField] ?? null)
+                    ->all();
+            }
+        }
+
+        $toInsert = [];
+        $toUpdate = [];
+
         foreach ($mapped as $index => $data) {
             $rowNumber = $index + 2;
             if (empty(array_filter($data, fn ($v) => $v !== null && $v !== ''))) {
-                continue; 
+                continue;
             }
 
             $existing = null;
@@ -108,9 +131,7 @@ class ImportController extends Controller
                     $skipped++;
                     continue;
                 }
-                $existing = IdRecord::query()
-                    ->whereRaw('JSON_UNQUOTE(JSON_EXTRACT(data, ?)) = ?', ['$."'.$uniqueField.'"', $value])
-                    ->first();
+                $existing = $existingByValue[$value] ?? null;
             }
 
             if ($existing) {
@@ -119,7 +140,7 @@ class ImportController extends Controller
                     $skipped++;
                     continue;
                 }
-                $existing->update(['data' => array_merge($existing->data, $data)]);
+                $toUpdate[] = [$existing, $data];
                 $updated++;
             } else {
                 if ($mode === 'update') {
@@ -127,10 +148,25 @@ class ImportController extends Controller
                     $skipped++;
                     continue;
                 }
-                IdRecord::create(['data' => $data]);
+                $toInsert[] = $data;
                 $created++;
             }
         }
+
+        DB::transaction(function () use ($toInsert, $toUpdate) {
+            $now = now();
+            foreach (array_chunk($toInsert, 500) as $chunk) {
+                IdRecord::insert(array_map(fn (array $data) => [
+                    'data' => json_encode($data),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $chunk));
+            }
+
+            foreach ($toUpdate as [$existing, $data]) {
+                $existing->update(['data' => array_merge($existing->data, $data)]);
+            }
+        });
 
         Storage::disk('local')->delete("imports/{$importId}.{$validated['extension']}");
 
