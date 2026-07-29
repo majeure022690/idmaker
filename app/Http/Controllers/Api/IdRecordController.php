@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\IdRecord;
 use App\Support\FieldKey;
+use App\Support\RecordSort;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -215,24 +216,6 @@ class IdRecordController extends Controller
 
     private function applySort($query, ?string $sortBy, ?string $sortDir): void
     {
-        $direction = strtolower((string) $sortDir) === 'desc' ? 'desc' : 'asc';
-
-        // A comma-separated sort_by (e.g. "region,province,municipality,barangay")
-        // chains multiple ORDER BY clauses for a drill-down/cascading sort,
-        // not just a single flat field.
-        if ($sortBy && $sortBy !== 'id') {
-            foreach (explode(',', $sortBy) as $field) {
-                $field = trim($field);
-                if ($field === '') {
-                    continue;
-                }
-                $normalized = FieldKey::normalize($field);
-                $query->orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(data, ?)) {$direction}", ['$."'.$normalized.'"']);
-            }
-        }
-
-        // Deterministic tie-breaker for equal/missing sort values, and the
-        // whole ordering when no field sort was requested at all.
-        $query->orderByDesc('id');
+        RecordSort::apply($query, $sortBy, $sortDir);
     }
 }

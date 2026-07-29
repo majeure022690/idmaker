@@ -9,6 +9,7 @@ use App\Models\Template;
 use App\Services\Print\PaperSize;
 use App\Services\Print\PdfGenerator;
 use App\Services\Print\PrintLayoutCalculator;
+use App\Support\RecordSort;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -66,16 +67,25 @@ class GenerationBatchController extends Controller
             'template_id' => ['required', 'integer', 'exists:templates,id'],
             'record_ids' => ['required', 'array', 'min:1'],
             'record_ids.*' => ['integer', 'exists:id_records,id'],
+            'sort_by' => ['nullable', 'string'],
+            'sort_dir' => ['nullable', 'string', 'in:asc,desc'],
             ...self::PRINT_CONFIG_RULES,
         ]);
 
         $template = Template::findOrFail($validated['template_id']);
-        $records = $this->orderedRecords($validated['record_ids']);
+
+        // Print order is resolved from the requested sort *now*, not
+        // trusted from the order record_ids happened to arrive in - a
+        // selection built while one sort was active (e.g. "select all
+        // matching") doesn't retroactively reorder itself if the user
+        // then switches to a different sort before generating.
+        $records = $this->orderedRecords($validated['record_ids'], $validated['sort_by'] ?? null, $validated['sort_dir'] ?? null);
+        $resolvedIds = $records->pluck('id')->all();
 
         $batch = GenerationBatch::create([
             'name' => $validated['name'],
             'template_id' => $template->id,
-            'record_ids' => $validated['record_ids'],
+            'record_ids' => $resolvedIds,
             'print_config' => $validated['print_config'],
         ]);
 
@@ -152,9 +162,20 @@ class GenerationBatchController extends Controller
         ];
     }
 
-    private function orderedRecords(array $ids): Collection
+    private function orderedRecords(array $ids, ?string $sortBy = null, ?string $sortDir = null): Collection
     {
-        $records = IdRecord::query()->whereIn('id', $ids)->get()->keyBy('id');
+        $query = IdRecord::query()->whereIn('id', $ids);
+
+        if ($sortBy) {
+            RecordSort::apply($query, $sortBy, $sortDir);
+
+            return $query->get();
+        }
+
+        // No sort requested (e.g. regenerating an existing batch) - preserve
+        // the given id order as-is, since it's already the resolved order
+        // from when the batch was first generated.
+        $records = $query->get()->keyBy('id');
 
         return collect($ids)->map(fn ($id) => $records->get($id))->filter()->values();
     }
