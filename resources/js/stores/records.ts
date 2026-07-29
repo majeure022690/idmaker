@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { api } from '../lib/api';
+import { NAME_FIELD_CANDIDATES } from '../types/records';
 import type { IdRecord, Paginated } from '../types/records';
 
 export const useRecordsStore = defineStore('records', {
@@ -12,6 +13,9 @@ export const useRecordsStore = defineStore('records', {
         search: '',
         filters: {} as Record<string, string>,
         fields: [] as string[],
+        usedFields: [] as string[],
+        sortBy: 'id' as string,
+        sortDir: 'desc' as 'asc' | 'desc',
         selectedIds: new Set<number>(),
     }),
 
@@ -21,15 +25,36 @@ export const useRecordsStore = defineStore('records', {
 
     actions: {
         async fetchFields(): Promise<void> {
-            const { data } = await api.get<{ fields: string[] }>('/id-records/fields');
+            const { data } = await api.get<{ fields: string[]; used_fields: string[] }>('/id-records/fields');
             this.fields = data.fields;
+            this.usedFields = data.used_fields;
+
+            // Default to sorting by whichever name-like field is actually
+            // populated on current data (not just "a standard field name" -
+            // `fields` always offers e.g. full_name as a suggestion even if
+            // every record actually uses grantee_name instead) - only on
+            // first load, so it doesn't clobber a sort the user picked.
+            if (this.sortBy === 'id') {
+                const nameField = NAME_FIELD_CANDIDATES.find((f) => data.used_fields.includes(f));
+                if (nameField) {
+                    this.sortBy = nameField;
+                    this.sortDir = 'asc';
+                }
+            }
         },
 
         async fetchPage(page = 1): Promise<void> {
             this.loading = true;
             try {
                 const { data } = await api.get<Paginated<IdRecord>>('/id-records', {
-                    params: { search: this.search || undefined, filter: this.filters, page, per_page: 25 },
+                    params: {
+                        search: this.search || undefined,
+                        filter: this.filters,
+                        sort_by: this.sortBy,
+                        sort_dir: this.sortDir,
+                        page,
+                        per_page: 25,
+                    },
                 });
                 this.items = data.data;
                 this.currentPage = data.current_page;
@@ -42,7 +67,7 @@ export const useRecordsStore = defineStore('records', {
 
         async fetchAllMatchingIds(): Promise<number[]> {
             const { data } = await api.get<{ ids: number[] }>('/id-records/ids', {
-                params: { search: this.search || undefined, filter: this.filters },
+                params: { search: this.search || undefined, filter: this.filters, sort_by: this.sortBy, sort_dir: this.sortDir },
             });
             return data.ids;
         },

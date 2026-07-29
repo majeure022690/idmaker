@@ -44,7 +44,7 @@ export function fieldLabel(key: string): string {
 // (full_name, grantee_name, employee_name, ...) - records reused across
 // templates/imports won't all share one field, so try common candidates
 // in order before falling back to a bare identifier or the record id.
-const NAME_FIELD_CANDIDATES = [
+export const NAME_FIELD_CANDIDATES = [
     'full_name',
     'name',
     'grantee_name',

@@ -22,9 +22,10 @@ class IdRecordController extends Controller
         $query = IdRecord::query();
         $this->applySearch($query, $request->string('search')->toString());
         $this->applyFilters($query, (array) $request->input('filter', []));
+        $this->applySort($query, $request->string('sort_by')->toString(), $request->string('sort_dir')->toString());
 
         $perPage = (int) $request->input('per_page', 25);
-        $records = $query->orderByDesc('id')->paginate(max(1, min($perPage, 500)));
+        $records = $query->paginate(max(1, min($perPage, 500)));
 
         return $records;
     }
@@ -34,20 +35,27 @@ class IdRecordController extends Controller
         $query = IdRecord::query();
         $this->applySearch($query, $request->string('search')->toString());
         $this->applyFilters($query, (array) $request->input('filter', []));
+        $this->applySort($query, $request->string('sort_by')->toString(), $request->string('sort_dir')->toString());
 
-        return response()->json(['ids' => $query->orderByDesc('id')->pluck('id')]);
+        return response()->json(['ids' => $query->pluck('id')]);
     }
 
     public function fields()
     {
-        $used = IdRecord::query()->pluck('data')
-            ->flatMap(fn ($data) => array_keys($data ?? []))
+        // Fields actually populated on at least one record - unlike the
+        // merged list below, this excludes STANDARD_FIELDS entries that are
+        // only ever offered as suggestions and never actually used by the
+        // current data (relevant for e.g. picking a sensible default sort
+        // field, where "technically a standard field" isn't good enough).
+        $used = IdRecord::query()
+            ->get()
+            ->flatMap(fn (IdRecord $r) => collect($r->data ?? [])->filter(fn ($v) => $v !== null && $v !== '')->keys())
             ->unique()
             ->values();
 
         $fields = collect(self::STANDARD_FIELDS)->merge($used)->unique()->values();
 
-        return response()->json(['fields' => $fields]);
+        return response()->json(['fields' => $fields, 'used_fields' => $used]);
     }
 
     public function store(Request $request)
@@ -199,9 +207,32 @@ class IdRecordController extends Controller
                 continue;
             }
             $query->whereRaw(
-                "JSON_UNQUOTE(JSON_EXTRACT(data, ?)) = ?",
-                ['$."'.FieldKey::normalize((string) $key).'"', $value]
+                "JSON_UNQUOTE(JSON_EXTRACT(data, ?)) LIKE ?",
+                ['$."'.FieldKey::normalize((string) $key).'"', '%'.$value.'%']
             );
         }
+    }
+
+    private function applySort($query, ?string $sortBy, ?string $sortDir): void
+    {
+        $direction = strtolower((string) $sortDir) === 'desc' ? 'desc' : 'asc';
+
+        // A comma-separated sort_by (e.g. "region,province,municipality,barangay")
+        // chains multiple ORDER BY clauses for a drill-down/cascading sort,
+        // not just a single flat field.
+        if ($sortBy && $sortBy !== 'id') {
+            foreach (explode(',', $sortBy) as $field) {
+                $field = trim($field);
+                if ($field === '') {
+                    continue;
+                }
+                $normalized = FieldKey::normalize($field);
+                $query->orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(data, ?)) {$direction}", ['$."'.$normalized.'"']);
+            }
+        }
+
+        // Deterministic tie-breaker for equal/missing sort values, and the
+        // whole ordering when no field sort was requested at all.
+        $query->orderByDesc('id');
     }
 }

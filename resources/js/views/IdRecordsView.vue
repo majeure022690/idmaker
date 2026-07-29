@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRecordsStore } from '../stores/records';
-import { fieldLabel, recordDisplayName } from '../types/records';
+import { fieldLabel, recordDisplayName, NAME_FIELD_CANDIDATES } from '../types/records';
 import RecordFormModal from '../components/records/RecordFormModal.vue';
 import ImportWizard from '../components/records/ImportWizard.vue';
 import type { IdRecord } from '../types/records';
@@ -12,18 +12,25 @@ const store = useRecordsStore();
 const showForm = ref(false);
 const showImport = ref(false);
 const editingRecord = ref<IdRecord | null>(null);
-const filterField = ref('');
-const filterValue = ref('');
+const searchField = ref(''); // '' = search across all fields
+const searchText = ref('');
 
 // "Name" is always pinned as its own column (see recordDisplayName - it
 // tries several common name fields since different imports use different
 // header names), so the remaining columns skip those to avoid a duplicate.
-const NAME_FIELDS = new Set(['full_name', 'name', 'grantee_name', 'employee_name', 'beneficiary_name', 'client_name', 'recipient_name', 'member_name', 'student_name', 'first_name', 'middle_name', 'last_name']);
+const NAME_FIELDS = new Set([...NAME_FIELD_CANDIDATES, 'first_name', 'middle_name', 'last_name']);
 const displayColumns = computed(() => {
     const cols = new Set<string>();
     for (const r of store.items) Object.keys(r.data).forEach((k) => { if (!NAME_FIELDS.has(k)) cols.add(k); });
     return Array.from(cols).slice(0, 4);
 });
+
+// A drill-down sort (region, then province within it, then municipality,
+// then barangay) reads more naturally for geographic data than picking one
+// flat field at a time - only offered when the data actually has these.
+const GEO_CASCADE_FIELDS = ['region', 'province', 'municipality', 'barangay'];
+const GEO_CASCADE_VALUE = GEO_CASCADE_FIELDS.join(',');
+const geoCascadeAvailable = computed(() => GEO_CASCADE_FIELDS.every((f) => store.usedFields.includes(f)));
 
 async function refresh(): Promise<void> {
     await store.fetchPage(1);
@@ -55,10 +62,19 @@ async function removeSelected(): Promise<void> {
     await refresh();
 }
 
-function applyFilter(): void {
-    store.filters = filterField.value && filterValue.value ? { [filterField.value]: filterValue.value } : {};
+function onSortFieldChange(): void {
     refresh();
 }
+
+function toggleSortDir(): void {
+    store.sortDir = store.sortDir === 'asc' ? 'desc' : 'asc';
+    refresh();
+}
+
+const sortDirLabel = computed(() => {
+    if (store.sortBy === 'id') return store.sortDir === 'desc' ? '↓ Newest first' : '↑ Oldest first';
+    return store.sortDir === 'asc' ? '↑ A–Z' : '↓ Z–A';
+});
 
 function goToGenerate(): void {
     router.push({ name: 'generate' });
@@ -66,15 +82,18 @@ function goToGenerate(): void {
 
 let searchTimeout: ReturnType<typeof setTimeout> | undefined;
 watch(
-    () => store.search,
-    () => {
+    [searchField, searchText],
+    ([field, text]) => {
+        store.search = field ? '' : text;
+        store.filters = field && text ? { [field]: text } : {};
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(refresh, 300);
     },
 );
 
 onMounted(async () => {
-    await Promise.all([store.fetchFields(), refresh()]);
+    await store.fetchFields();
+    await refresh();
 });
 </script>
 
@@ -93,19 +112,26 @@ onMounted(async () => {
         </div>
 
         <div class="mb-4 flex flex-wrap items-center gap-2">
-            <input v-model="store.search" type="text" placeholder="Search records…" class="w-64 rounded border border-slate-300 px-3 py-1.5 text-sm" />
-            <select v-model="filterField" class="rounded border border-slate-300 px-2 py-1.5 text-sm">
-                <option value="">Filter by field…</option>
+            <select v-model="searchField" class="rounded border border-slate-300 px-2 py-1.5 text-sm">
+                <option value="">All fields</option>
                 <option v-for="f in store.fields" :key="f" :value="f">{{ fieldLabel(f) }}</option>
             </select>
             <input
-                v-model="filterValue"
+                v-model="searchText"
                 type="text"
-                placeholder="Value"
-                class="w-40 rounded border border-slate-300 px-2 py-1.5 text-sm"
-                @keydown.enter="applyFilter"
+                :placeholder="searchField ? `Search ${fieldLabel(searchField)}…` : 'Search records…'"
+                class="w-64 rounded border border-slate-300 px-3 py-1.5 text-sm"
             />
-            <button class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" @click="applyFilter">Apply</button>
+
+            <span class="ml-2 text-sm text-slate-400">Sort by</span>
+            <select v-model="store.sortBy" class="rounded border border-slate-300 px-2 py-1.5 text-sm" @change="onSortFieldChange">
+                <option value="id">Date added</option>
+                <option v-if="geoCascadeAvailable" :value="GEO_CASCADE_VALUE">Region → Province → Municipality → Barangay</option>
+                <option v-for="f in store.fields" :key="f" :value="f">{{ fieldLabel(f) }}</option>
+            </select>
+            <button class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" @click="toggleSortDir">
+                {{ sortDirLabel }}
+            </button>
         </div>
 
         <div class="mb-3 flex items-center gap-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
