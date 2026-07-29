@@ -4,6 +4,10 @@ import { useRecordsStore } from '../stores/records';
 import { useTemplatesStore } from '../stores/templates';
 import { api } from '../lib/api';
 import { recordDisplayName } from '../types/records';
+import IconButton from '../components/IconButton.vue';
+import DownloadIcon from '../components/icons/DownloadIcon.vue';
+import RefreshIcon from '../components/icons/RefreshIcon.vue';
+import TrashIcon from '../components/icons/TrashIcon.vue';
 import type { GenerationBatch, LayoutPreview, PrintConfig } from '../types/print';
 
 const records = useRecordsStore();
@@ -87,6 +91,8 @@ async function generate(): Promise<void> {
             name: batchName.value || `Batch ${new Date().toLocaleString()}`,
             template_id: templateId.value,
             record_ids: Array.from(records.selectedIds),
+            sort_by: records.sortBy,
+            sort_dir: records.sortDir,
             print_config: config,
         });
         generatedBatch.value = data;
@@ -285,9 +291,18 @@ onMounted(async () => {
                         <td class="border-b border-slate-100 px-3 py-2">{{ batch.record_count }}</td>
                         <td class="border-b border-slate-100 px-3 py-2">{{ batch.generated_at ? new Date(batch.generated_at).toLocaleString() : '—' }}</td>
                         <td class="border-b border-slate-100 px-3 py-2 text-right">
-                            <a v-if="batch.pdf_url" :href="batch.pdf_url" target="_blank" class="text-slate-600 hover:underline">Download</a>
-                            <button class="ml-2 text-slate-600 hover:underline" @click="regenerate(batch)">Reprint</button>
-                            <button class="ml-2 text-red-600 hover:underline" @click="deleteBatch(batch)">Delete</button>
+                            <a
+                                v-if="batch.pdf_url"
+                                :href="batch.pdf_url"
+                                target="_blank"
+                                title="Download"
+                                aria-label="Download"
+                                class="inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-emerald-600 transition-colors hover:bg-emerald-50"
+                            >
+                                <DownloadIcon class="h-4 w-4" />
+                            </a>
+                            <IconButton label="Reprint" variant="warning" @click="regenerate(batch)"><RefreshIcon class="h-4 w-4" /></IconButton>
+                            <IconButton label="Delete" variant="danger" @click="deleteBatch(batch)"><TrashIcon class="h-4 w-4" /></IconButton>
                         </td>
                     </tr>
                 </tbody>

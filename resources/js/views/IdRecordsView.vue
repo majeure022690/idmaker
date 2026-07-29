@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRecordsStore } from '../stores/records';
 import { fieldLabel, recordDisplayName, NAME_FIELD_CANDIDATES } from '../types/records';
 import RecordFormModal from '../components/records/RecordFormModal.vue';
 import ImportWizard from '../components/records/ImportWizard.vue';
+import IconButton from '../components/IconButton.vue';
+import PencilIcon from '../components/icons/PencilIcon.vue';
+import TrashIcon from '../components/icons/TrashIcon.vue';
 import type { IdRecord } from '../types/records';
 
 const router = useRouter();
@@ -19,11 +22,64 @@ const searchText = ref('');
 // tries several common name fields since different imports use different
 // header names), so the remaining columns skip those to avoid a duplicate.
 const NAME_FIELDS = new Set([...NAME_FIELD_CANDIDATES, 'first_name', 'middle_name', 'last_name']);
-const displayColumns = computed(() => {
+
+// Which extra columns show, and in what order - user-configurable via the
+// "Columns" picker and remembered across visits. Falls back to picking
+// whichever fields are present on the current page until the user picks
+// their own set.
+const COLUMN_PREF_KEY = 'idmaker.records.visibleColumns';
+function loadColumnPrefs(): string[] | null {
+    try {
+        const raw = localStorage.getItem(COLUMN_PREF_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+function saveColumnPrefs(cols: string[] | null): void {
+    try {
+        if (cols) localStorage.setItem(COLUMN_PREF_KEY, JSON.stringify(cols));
+        else localStorage.removeItem(COLUMN_PREF_KEY);
+    } catch {
+        // localStorage unavailable - preference just won't persist, not fatal.
+    }
+}
+
+const customColumns = ref<string[] | null>(loadColumnPrefs());
+const showColumnPicker = ref(false);
+const columnPickerEl = ref<HTMLElement | null>(null);
+function handleDocumentClick(e: MouseEvent): void {
+    if (showColumnPicker.value && columnPickerEl.value && !columnPickerEl.value.contains(e.target as Node)) {
+        showColumnPicker.value = false;
+    }
+}
+
+const autoColumns = computed(() => {
     const cols = new Set<string>();
-    for (const r of store.items) Object.keys(r.data).forEach((k) => { if (!NAME_FIELDS.has(k)) cols.add(k); });
+    for (const r of store.items) {
+        for (const [k, v] of Object.entries(r.data)) {
+            // A field that exists as a key but is blank on every row (e.g.
+            // an imported column nobody filled in) isn't worth a column.
+            if (!NAME_FIELDS.has(k) && v !== null && v !== '') cols.add(k);
+        }
+    }
     return Array.from(cols).slice(0, 4);
 });
+
+const displayColumns = computed(() => customColumns.value ?? autoColumns.value);
+const availableFields = computed(() => store.fields.filter((f) => !NAME_FIELDS.has(f)));
+const hasAnyPhoto = computed(() => store.items.some((r) => r.photo_path));
+
+function toggleColumn(field: string): void {
+    const base = customColumns.value ?? [...autoColumns.value];
+    customColumns.value = base.includes(field) ? base.filter((f) => f !== field) : [...base, field];
+    saveColumnPrefs(customColumns.value);
+}
+
+function resetColumns(): void {
+    customColumns.value = null;
+    saveColumnPrefs(null);
+}
 
 // A drill-down sort (region, then province within it, then municipality,
 // then barangay) reads more naturally for geographic data than picking one
@@ -92,8 +148,13 @@ watch(
 );
 
 onMounted(async () => {
+    document.addEventListener('click', handleDocumentClick);
     await store.fetchFields();
     await refresh();
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleDocumentClick);
 });
 </script>
 
@@ -132,6 +193,26 @@ onMounted(async () => {
             <button class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" @click="toggleSortDir">
                 {{ sortDirLabel }}
             </button>
+
+            <div ref="columnPickerEl" class="relative ml-auto">
+                <button
+                    class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                    @click="showColumnPicker = !showColumnPicker"
+                >
+                    Columns ▾
+                </button>
+                <div
+                    v-if="showColumnPicker"
+                    class="absolute right-0 z-10 mt-1 w-64 rounded border border-slate-200 bg-white p-3 text-sm shadow-lg"
+                >
+                    <p class="mb-2 text-xs font-medium text-slate-400">Extra columns to show (Name is always shown)</p>
+                    <label v-for="f in availableFields" :key="f" class="flex items-center gap-2 py-0.5">
+                        <input type="checkbox" :checked="displayColumns.includes(f)" @change="toggleColumn(f)" />
+                        {{ fieldLabel(f) }}
+                    </label>
+                    <button class="mt-2 text-xs text-slate-500 hover:underline" @click="resetColumns">Reset to default</button>
+                </div>
+            </div>
         </div>
 
         <div class="mb-3 flex items-center gap-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
@@ -167,7 +248,7 @@ onMounted(async () => {
                     <th class="border-b border-slate-200 px-3 py-2 text-left"></th>
                     <th class="border-b border-slate-200 px-3 py-2 text-left">Name</th>
                     <th v-for="col in displayColumns" :key="col" class="border-b border-slate-200 px-3 py-2 text-left">{{ fieldLabel(col) }}</th>
-                    <th class="border-b border-slate-200 px-3 py-2 text-left">Photo</th>
+                    <th v-if="hasAnyPhoto" class="border-b border-slate-200 px-3 py-2 text-left">Photo</th>
                     <th class="border-b border-slate-200 px-3 py-2"></th>
                 </tr>
             </thead>
@@ -178,10 +259,10 @@ onMounted(async () => {
                     </td>
                     <td class="border-b border-slate-100 px-3 py-2 font-medium">{{ recordDisplayName(record) }}</td>
                     <td v-for="col in displayColumns" :key="col" class="border-b border-slate-100 px-3 py-2">{{ record.data[col] ?? '' }}</td>
-                    <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400">{{ record.photo_path ? '✓' : '—' }}</td>
+                    <td v-if="hasAnyPhoto" class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400">{{ record.photo_path ? '✓' : '—' }}</td>
                     <td class="border-b border-slate-100 px-3 py-2 text-right">
-                        <button class="text-slate-600 hover:underline" @click="openEdit(record)">Edit</button>
-                        <button class="ml-2 text-red-600 hover:underline" @click="remove(record)">Delete</button>
+                        <IconButton label="Edit" @click="openEdit(record)"><PencilIcon class="h-4 w-4" /></IconButton>
+                        <IconButton label="Delete" variant="danger" @click="remove(record)"><TrashIcon class="h-4 w-4" /></IconButton>
                     </td>
                 </tr>
             </tbody>

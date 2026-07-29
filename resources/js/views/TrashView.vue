@@ -2,6 +2,9 @@
 import { onMounted, ref } from 'vue';
 import { api } from '../lib/api';
 import { recordDisplayName } from '../types/records';
+import IconButton from '../components/IconButton.vue';
+import UndoIcon from '../components/icons/UndoIcon.vue';
+import TrashIcon from '../components/icons/TrashIcon.vue';
 import type { IdRecord, Paginated } from '../types/records';
 
 const items = ref<IdRecord[]>([]);
@@ -84,8 +87,8 @@ onMounted(refresh);
                         {{ record.deleted_at ? new Date(record.deleted_at).toLocaleString() : '' }}
                     </td>
                     <td class="border-b border-slate-100 px-3 py-2 text-right">
-                        <button class="text-slate-600 hover:underline" @click="restore(record)">Restore</button>
-                        <button class="ml-2 text-red-600 hover:underline" @click="forceDelete(record)">Delete permanently</button>
+                        <IconButton label="Restore" variant="success" @click="restore(record)"><UndoIcon class="h-4 w-4" /></IconButton>
+                        <IconButton label="Delete permanently" variant="danger" @click="forceDelete(record)"><TrashIcon class="h-4 w-4" /></IconButton>
                     </td>
                 </tr>
             </tbody>

@@ -3,6 +3,10 @@ import { onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTemplatesStore } from '../stores/templates';
 import { SIZE_PRESETS, toMm } from '../lib/units';
+import IconButton from '../components/IconButton.vue';
+import PencilIcon from '../components/icons/PencilIcon.vue';
+import DuplicateIcon from '../components/icons/DuplicateIcon.vue';
+import TrashIcon from '../components/icons/TrashIcon.vue';
 import type { Unit } from '../types/design';
 
 const router = useRouter();
@@ -87,10 +91,17 @@ onMounted(() => templates.fetchAll());
                         · updated {{ new Date(t.updated_at).toLocaleString() }}
                     </p>
                 </div>
-                <div class="flex gap-2 text-sm">
-                    <router-link :to="{ name: 'designer', params: { id: t.id } }" class="rounded px-2 py-1 text-slate-600 hover:bg-slate-100">Edit</router-link>
-                    <button class="rounded px-2 py-1 text-slate-600 hover:bg-slate-100" @click="duplicate(t.id)">Duplicate</button>
-                    <button class="rounded px-2 py-1 text-red-600 hover:bg-red-50" @click="remove(t.id)">Delete</button>
+                <div class="flex gap-1">
+                    <router-link
+                        :to="{ name: 'designer', params: { id: t.id } }"
+                        title="Edit"
+                        aria-label="Edit"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-blue-600 transition-colors hover:bg-blue-50"
+                    >
+                        <PencilIcon class="h-4 w-4" />
+                    </router-link>
+                    <IconButton label="Duplicate" @click="duplicate(t.id)"><DuplicateIcon class="h-4 w-4" /></IconButton>
+                    <IconButton label="Delete" variant="danger" @click="remove(t.id)"><TrashIcon class="h-4 w-4" /></IconButton>
                 </div>
             </li>
         </ul>
