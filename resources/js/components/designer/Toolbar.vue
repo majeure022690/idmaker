@@ -68,7 +68,12 @@ function toggleBackSide(): void {
 
 <template>
     <div class="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <router-link to="/" class="mr-2 text-sm text-slate-500 hover:text-slate-800">&larr; Templates</router-link>
+        <router-link
+            to="/"
+            class="mr-2 rounded border border-blue-300 px-3 py-1 text-sm font-medium text-blue-600 hover:bg-blue-50"
+        >
+            &larr; Templates
+        </router-link>
 
         <span class="mr-4 text-sm font-medium text-slate-900">{{ store.name }}</span>
 

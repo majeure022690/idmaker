@@ -17,6 +17,7 @@ import type {
     Unit,
 } from '../types/design';
 import { HistoryStack } from '../lib/history';
+import { generateId } from '../lib/id';
 
 function emptySide(): CardSide {
     return { background: { type: 'color', value: '#FFFFFF' }, elements: [] };
@@ -155,7 +156,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addTextElement(x: number, y: number): TextElement {
             const element: TextElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'text',
                 x,
                 y,
@@ -182,7 +183,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addDynamicTextElement(x: number, y: number, field: string): DynamicTextElement {
             const element: DynamicTextElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'dynamic_text',
                 x,
                 y,
@@ -209,7 +210,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addImageElement(x: number, y: number, width: number, height: number, source: string): ImageElement {
             const element: ImageElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'image',
                 x,
                 y,
@@ -228,7 +229,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addPhotoElement(x: number, y: number, field = 'photo'): PhotoElement {
             const element: PhotoElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'photo',
                 x,
                 y,
@@ -247,7 +248,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addSignatureElement(x: number, y: number, field = 'signature'): SignatureElement {
             const element: SignatureElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'signature',
                 x,
                 y,
@@ -266,7 +267,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addQrCodeElement(x: number, y: number, value = '{{id_number}}'): QrCodeElement {
             const element: QrCodeElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'qrcode',
                 x,
                 y,
@@ -287,7 +288,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addBarcodeElement(x: number, y: number, value = '{{id_number}}', format: CodeFormat = 'CODE128'): BarcodeElement {
             const element: BarcodeElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'barcode',
                 x,
                 y,
@@ -309,7 +310,7 @@ export const useDesignerStore = defineStore('designer', {
 
         addShapeElement(x: number, y: number, shape: ShapeKind = 'rectangle'): ShapeElement {
             const element: ShapeElement = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 type: 'shape',
                 x,
                 y,
@@ -342,7 +343,7 @@ export const useDesignerStore = defineStore('designer', {
             const elements = this.currentSideMutable().elements;
             const original = elements.find((el) => el.id === id);
             if (!original) return;
-            const copy = { ...original, id: crypto.randomUUID(), x: original.x + 5, y: original.y + 5 } as DesignElement;
+            const copy = { ...original, id: generateId(), x: original.x + 5, y: original.y + 5 } as DesignElement;
             elements.push(copy);
             this.selectedElementId = copy.id;
             this.structureVersion++;
