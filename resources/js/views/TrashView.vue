@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { api } from '../lib/api';
+import { recordDisplayName } from '../types/records';
 import type { IdRecord, Paginated } from '../types/records';
 
 const items = ref<IdRecord[]>([]);
@@ -19,12 +20,7 @@ async function refresh(): Promise<void> {
 }
 
 function recordLabel(r: IdRecord): string {
-    const candidates = ['full_name', 'grantee_name', 'name', 'id_number', 'household_id'];
-    for (const key of candidates) {
-        if (r.data[key]) return String(r.data[key]);
-    }
-    const firstValue = Object.values(r.data).find((v) => v);
-    return firstValue ? String(firstValue) : `Record #${r.id}`;
+    return recordDisplayName(r);
 }
 
 async function restore(record: IdRecord): Promise<void> {

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRecordsStore } from '../stores/records';
-import { fieldLabel } from '../types/records';
+import { fieldLabel, recordDisplayName } from '../types/records';
 import RecordFormModal from '../components/records/RecordFormModal.vue';
 import ImportWizard from '../components/records/ImportWizard.vue';
 import type { IdRecord } from '../types/records';
@@ -15,10 +15,14 @@ const editingRecord = ref<IdRecord | null>(null);
 const filterField = ref('');
 const filterValue = ref('');
 
+// "Name" is always pinned as its own column (see recordDisplayName - it
+// tries several common name fields since different imports use different
+// header names), so the remaining columns skip those to avoid a duplicate.
+const NAME_FIELDS = new Set(['full_name', 'name', 'grantee_name', 'employee_name', 'beneficiary_name', 'client_name', 'recipient_name', 'member_name', 'student_name', 'first_name', 'middle_name', 'last_name']);
 const displayColumns = computed(() => {
     const cols = new Set<string>();
-    for (const r of store.items) Object.keys(r.data).forEach((k) => cols.add(k));
-    return Array.from(cols).slice(0, 5);
+    for (const r of store.items) Object.keys(r.data).forEach((k) => { if (!NAME_FIELDS.has(k)) cols.add(k); });
+    return Array.from(cols).slice(0, 4);
 });
 
 async function refresh(): Promise<void> {
@@ -135,6 +139,7 @@ onMounted(async () => {
             <thead class="bg-slate-50">
                 <tr>
                     <th class="border-b border-slate-200 px-3 py-2 text-left"></th>
+                    <th class="border-b border-slate-200 px-3 py-2 text-left">Name</th>
                     <th v-for="col in displayColumns" :key="col" class="border-b border-slate-200 px-3 py-2 text-left">{{ fieldLabel(col) }}</th>
                     <th class="border-b border-slate-200 px-3 py-2 text-left">Photo</th>
                     <th class="border-b border-slate-200 px-3 py-2"></th>
@@ -145,6 +150,7 @@ onMounted(async () => {
                     <td class="border-b border-slate-100 px-3 py-2">
                         <input type="checkbox" :checked="store.selectedIds.has(record.id)" @change="store.toggleSelected(record.id)" />
                     </td>
+                    <td class="border-b border-slate-100 px-3 py-2 font-medium">{{ recordDisplayName(record) }}</td>
                     <td v-for="col in displayColumns" :key="col" class="border-b border-slate-100 px-3 py-2">{{ record.data[col] ?? '' }}</td>
                     <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400">{{ record.photo_path ? '✓' : '—' }}</td>
                     <td class="border-b border-slate-100 px-3 py-2 text-right">

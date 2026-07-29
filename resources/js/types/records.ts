@@ -39,3 +39,37 @@ export function fieldLabel(key: string): string {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
 }
+
+// Different imports use different header names for "the person's name"
+// (full_name, grantee_name, employee_name, ...) - records reused across
+// templates/imports won't all share one field, so try common candidates
+// in order before falling back to a bare identifier or the record id.
+const NAME_FIELD_CANDIDATES = [
+    'full_name',
+    'name',
+    'grantee_name',
+    'employee_name',
+    'beneficiary_name',
+    'client_name',
+    'recipient_name',
+    'member_name',
+    'student_name',
+];
+const IDENTIFIER_FIELD_CANDIDATES = ['id_number', 'household_id', 'employee_no', 'employee_id', 'member_id'];
+
+export function recordDisplayName(record: IdRecord): string {
+    for (const key of NAME_FIELD_CANDIDATES) {
+        const value = record.data[key];
+        if (value) return value;
+    }
+
+    const parts = [record.data.first_name, record.data.middle_name, record.data.last_name].filter(Boolean);
+    if (parts.length) return parts.join(' ');
+
+    for (const key of IDENTIFIER_FIELD_CANDIDATES) {
+        const value = record.data[key];
+        if (value) return value;
+    }
+
+    return `Record #${record.id}`;
+}

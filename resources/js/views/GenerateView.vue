@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRecordsStore } from '../stores/records';
 import { useTemplatesStore } from '../stores/templates';
 import { api } from '../lib/api';
+import { recordDisplayName } from '../types/records';
 import type { GenerationBatch, LayoutPreview, PrintConfig } from '../types/print';
 
 const records = useRecordsStore();
@@ -133,7 +134,7 @@ onMounted(async () => {
             </div>
             <ul v-if="showReview" class="mt-3 max-h-40 overflow-y-auto text-sm">
                 <li v-for="r in selectedRecords" :key="r.id" class="flex items-center justify-between border-b border-slate-100 py-1">
-                    <span>{{ r.data.full_name ?? r.data.id_number ?? `Record #${r.id}` }}</span>
+                    <span>{{ recordDisplayName(r) }}</span>
                     <button class="text-red-500 hover:underline" @click="records.removeFromSelection(r.id)">Remove</button>
                 </li>
             </ul>
