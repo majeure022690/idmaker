@@ -114,6 +114,18 @@ export const useDesignerStore = defineStore('designer', {
             this.syncHistoryFlags();
         },
 
+        rename(name: string): void {
+            this.name = name;
+            this.dirty = true;
+        },
+
+        resize(width: number, height: number): void {
+            if (!(width > 0) || !(height > 0)) return;
+            this.width = width;
+            this.height = height;
+            this.dirty = true;
+        },
+
         setSide(side: 'front' | 'back'): void {
             this.side = side;
             this.selectedElementId = null;

@@ -142,6 +142,18 @@ onBeforeUnmount(() => {
 // bump structureVersion, so they don't loop back into a rebuild here.
 watch(() => [store.side, store.structureVersion], rebuild);
 
+// Editing the template's physical size (toolbar) resizes the fabric canvas
+// itself and re-renders everything at the new dimensions; element positions
+// are left as-is in mm, same as resizing a Canva-style artboard.
+watch(
+    () => [store.width, store.height],
+    ([width, height]) => {
+        if (!cardCanvas) return;
+        cardCanvas.resizePhysical(width as number, height as number);
+        rebuild();
+    },
+);
+
 // The selected element's own property edits (from the panel) are pushed onto
 // the live fabric object directly — cheap, and idempotent if it also fires
 // after a canvas-driven drag (same values re-applied, no visual change).

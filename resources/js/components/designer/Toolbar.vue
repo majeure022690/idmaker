@@ -75,7 +75,13 @@ function toggleBackSide(): void {
             &larr; Templates
         </router-link>
 
-        <span class="mr-4 text-sm font-medium text-slate-900">{{ store.name }}</span>
+        <input
+            :value="store.name"
+            type="text"
+            title="Template name"
+            class="mr-4 w-40 rounded border border-transparent px-1 py-0.5 text-sm font-medium text-slate-900 hover:border-slate-300 focus:border-slate-400 focus:outline-none"
+            @input="store.rename(($event.target as HTMLInputElement).value)"
+        />
 
         <button
             class="rounded px-2 py-1 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40"
