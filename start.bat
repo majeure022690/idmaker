@@ -3,7 +3,7 @@ setlocal
 
 cd /d "%~dp0"
 set "USBWS=%~dp0..\.."
-set "PHP_EXE=%USBWS%\php\php.exe"
+set "PHP_EXE=%USBWS%\php-x64\php.exe"
 set "MYSQLD_EXE=%USBWS%\mysql\bin\mysqld_usbwv8.exe"
 set "MYSQL_INI=%USBWS%\mysql\my.ini"
 set "PORT=8000"
@@ -13,6 +13,12 @@ if not exist "%PHP_EXE%" (
     echo This script expects to live at usbwebserver\root\id_maker.
     pause
     exit /b 1
+)
+
+if not exist "public\storage\." (
+    echo Storage link is missing or broken ^(happens after copying this folder to a new PC^), recreating it...
+    rmdir "public\storage" >nul 2>&1
+    "%PHP_EXE%" artisan storage:link >nul 2>&1
 )
 
 if not exist "public\build\manifest.json" (
