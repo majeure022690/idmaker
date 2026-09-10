@@ -206,8 +206,6 @@ export class CardCanvas {
             object.set('width', mmToPx(element.width));
             this.applyTextProps(object, element);
         } else if (element.type === 'image' && object instanceof FabricImage) {
-            // object.width/height are the source's natural pixel size (never
-            // mutated - see handleModified); scale alone controls display size.
             object.set({
                 scaleX: mmToPx(element.width) / (object.width || 1),
                 scaleY: mmToPx(element.height) / (object.height || 1),
@@ -307,15 +305,6 @@ export class CardCanvas {
         const scaleX = target.scaleX ?? 1;
         const scaleY = target.scaleY ?? 1;
         if (target instanceof FabricImage) {
-            // A FabricImage's width/height are the *source* pixel dimensions;
-            // scaleX/scaleY are what actually produce the on-screen size.
-            // Baking the drag scale into width/height (as done below for
-            // shapes) would permanently overwrite that source size, and
-            // nothing ever restores it for a plain image (unlike QR/barcode,
-            // which reload their source on every property update) - the
-            // object silently renders blank from then on. So for images,
-            // report the resulting size but leave width/height/scale as
-            // fabric's own interactive resize already left them.
             const widthPx = target.getScaledWidth();
             const heightPx = target.getScaledHeight();
             target.setCoords();

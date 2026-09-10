@@ -3,6 +3,8 @@
 namespace App\Services\Print;
 
 use App\Models\IdRecord;
+use App\Services\Import\FieldAliases;
+use App\Support\FieldKey;
 use Endroid\QrCode\Color\Color as QrColor;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
@@ -185,8 +187,8 @@ class DesignRenderer
     private static function resolveTemplate(string $template, ?IdRecord $record): string
     {
         return preg_replace_callback(
-            '/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/',
-            fn (array $m) => (string) ($record?->data[$m[1]] ?? ''),
+            '/\{\{\s*([^{}]+?)\s*\}\}/',
+            fn (array $m) => self::lookupFieldValue($m[1], $record),
             $template
         ) ?? $template;
     }
@@ -197,7 +199,23 @@ class DesignRenderer
             return self::resolveTemplate($fieldOrTemplate, $record);
         }
 
-        return (string) ($record?->data[$fieldOrTemplate] ?? '');
+        return self::lookupFieldValue($fieldOrTemplate, $record);
+    }
+
+    private static function lookupFieldValue(string $rawKey, ?IdRecord $record): string
+    {
+        if (! $record) {
+            return '';
+        }
+
+        $key = FieldKey::normalize($rawKey);
+        if (array_key_exists($key, $record->data)) {
+            return (string) ($record->data[$key] ?? '');
+        }
+
+        $canonical = FieldAliases::canonicalize($key);
+
+        return (string) ($record->data[$canonical] ?? '');
     }
 
     private static function mapFont(string $family): string

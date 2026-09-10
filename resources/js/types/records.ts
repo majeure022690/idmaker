@@ -40,10 +40,6 @@ export function fieldLabel(key: string): string {
         .join(' ');
 }
 
-// Different imports use different header names for "the person's name"
-// (full_name, grantee_name, employee_name, ...) - records reused across
-// templates/imports won't all share one field, so try common candidates
-// in order before falling back to a bare identifier or the record id.
 export const NAME_FIELD_CANDIDATES = [
     'full_name',
     'name',

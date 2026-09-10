@@ -43,11 +43,6 @@ class IdRecordController extends Controller
 
     public function fields()
     {
-        // Fields actually populated on at least one record - unlike the
-        // merged list below, this excludes STANDARD_FIELDS entries that are
-        // only ever offered as suggestions and never actually used by the
-        // current data (relevant for e.g. picking a sensible default sort
-        // field, where "technically a standard field" isn't good enough).
         $used = IdRecord::query()
             ->get()
             ->flatMap(fn (IdRecord $r) => collect($r->data ?? [])->filter(fn ($v) => $v !== null && $v !== '')->keys())

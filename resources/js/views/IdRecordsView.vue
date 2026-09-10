@@ -15,18 +15,11 @@ const store = useRecordsStore();
 const showForm = ref(false);
 const showImport = ref(false);
 const editingRecord = ref<IdRecord | null>(null);
-const searchField = ref(''); // '' = search across all fields
+const searchField = ref('');
 const searchText = ref('');
 
-// "Name" is always pinned as its own column (see recordDisplayName - it
-// tries several common name fields since different imports use different
-// header names), so the remaining columns skip those to avoid a duplicate.
 const NAME_FIELDS = new Set([...NAME_FIELD_CANDIDATES, 'first_name', 'middle_name', 'last_name']);
 
-// Which extra columns show, and in what order - user-configurable via the
-// "Columns" picker and remembered across visits. Falls back to picking
-// whichever fields are present on the current page until the user picks
-// their own set.
 const COLUMN_PREF_KEY = 'idmaker.records.visibleColumns';
 function loadColumnPrefs(): string[] | null {
     try {
@@ -41,7 +34,6 @@ function saveColumnPrefs(cols: string[] | null): void {
         if (cols) localStorage.setItem(COLUMN_PREF_KEY, JSON.stringify(cols));
         else localStorage.removeItem(COLUMN_PREF_KEY);
     } catch {
-        // localStorage unavailable - preference just won't persist, not fatal.
     }
 }
 
@@ -58,8 +50,6 @@ const autoColumns = computed(() => {
     const cols = new Set<string>();
     for (const r of store.items) {
         for (const [k, v] of Object.entries(r.data)) {
-            // A field that exists as a key but is blank on every row (e.g.
-            // an imported column nobody filled in) isn't worth a column.
             if (!NAME_FIELDS.has(k) && v !== null && v !== '') cols.add(k);
         }
     }
@@ -81,9 +71,6 @@ function resetColumns(): void {
     saveColumnPrefs(null);
 }
 
-// A drill-down sort (region, then province within it, then municipality,
-// then barangay) reads more naturally for geographic data than picking one
-// flat field at a time - only offered when the data actually has these.
 const GEO_CASCADE_FIELDS = ['region', 'province', 'municipality', 'barangay'];
 const GEO_CASCADE_VALUE = GEO_CASCADE_FIELDS.join(',');
 const geoCascadeAvailable = computed(() => GEO_CASCADE_FIELDS.every((f) => store.usedFields.includes(f)));

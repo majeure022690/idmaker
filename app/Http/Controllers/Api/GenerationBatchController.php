@@ -74,11 +74,6 @@ class GenerationBatchController extends Controller
 
         $template = Template::findOrFail($validated['template_id']);
 
-        // Print order is resolved from the requested sort *now*, not
-        // trusted from the order record_ids happened to arrive in - a
-        // selection built while one sort was active (e.g. "select all
-        // matching") doesn't retroactively reorder itself if the user
-        // then switches to a different sort before generating.
         $records = $this->orderedRecords($validated['record_ids'], $validated['sort_by'] ?? null, $validated['sort_dir'] ?? null);
         $resolvedIds = $records->pluck('id')->all();
 
@@ -172,9 +167,6 @@ class GenerationBatchController extends Controller
             return $query->get();
         }
 
-        // No sort requested (e.g. regenerating an existing batch) - preserve
-        // the given id order as-is, since it's already the resolved order
-        // from when the batch was first generated.
         $records = $query->get()->keyBy('id');
 
         return collect($ids)->map(fn ($id) => $records->get($id))->filter()->values();

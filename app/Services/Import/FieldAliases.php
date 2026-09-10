@@ -19,19 +19,22 @@ class FieldAliases
         'address' => ['address', 'home_address'],
         'contact_number' => ['contact_number', 'phone', 'mobile', 'contact_no', 'phone_number'],
         'date_issued' => ['date_issued', 'issued_date'],
-        'expiration_date' => ['expiration_date', 'expiry_date', 'valid_until'],
+        'expiration_date' => ['expiration_date', 'expiry_date'],
     ];
 
     public static function suggest(string $header): string
     {
-        $normalized = FieldKey::normalize($header);
+        return self::canonicalize(FieldKey::normalize($header));
+    }
 
+    public static function canonicalize(string $normalizedKey): string
+    {
         foreach (self::ALIASES as $canonical => $aliases) {
-            if (in_array($normalized, $aliases, true)) {
+            if (in_array($normalizedKey, $aliases, true)) {
                 return $canonical;
             }
         }
 
-        return $normalized;
+        return $normalizedKey;
     }
 }

@@ -29,11 +29,6 @@ export const useRecordsStore = defineStore('records', {
             this.fields = data.fields;
             this.usedFields = data.used_fields;
 
-            // Default to sorting by whichever name-like field is actually
-            // populated on current data (not just "a standard field name" -
-            // `fields` always offers e.g. full_name as a suggestion even if
-            // every record actually uses grantee_name instead) - only on
-            // first load, so it doesn't clobber a sort the user picked.
             if (this.sortBy === 'id') {
                 const nameField = NAME_FIELD_CANDIDATES.find((f) => data.used_fields.includes(f));
                 if (nameField) {

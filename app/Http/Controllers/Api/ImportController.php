@@ -96,11 +96,8 @@ class ImportController extends Controller
         $updated = 0;
         $skipped = 0;
         $errors = [];
+        $invalidRows = [];
 
-        // Look up all potential duplicates in one query instead of one
-        // per row - at a few thousand rows, a per-row whereRaw() JSON scan
-        // means thousands of individual round-trips, and it only gets
-        // slower as more rows accumulate from earlier imports.
         $existingByValue = [];
         if ($uniqueField) {
             $values = array_values(array_unique(array_filter(array_column($mapped, $uniqueField), fn ($v) => $v !== null && $v !== '')));
@@ -127,7 +124,9 @@ class ImportController extends Controller
             if ($uniqueField) {
                 $value = $data[$uniqueField] ?? null;
                 if ($value === null || $value === '') {
-                    $errors[] = "Row {$rowNumber}: missing value for unique field \"{$uniqueField}\", skipped.";
+                    $reason = "missing value for unique field \"{$uniqueField}\"";
+                    $errors[] = "Row {$rowNumber}: {$reason}, skipped.";
+                    $invalidRows[] = ['row' => $rowNumber, 'data' => $data, 'reason' => $reason];
                     $skipped++;
                     continue;
                 }
@@ -136,7 +135,9 @@ class ImportController extends Controller
 
             if ($existing) {
                 if ($mode === 'create') {
-                    $errors[] = "Row {$rowNumber}: already exists, skipped (mode is Create only).";
+                    $reason = 'already exists';
+                    $errors[] = "Row {$rowNumber}: {$reason}, skipped (mode is Create only).";
+                    $invalidRows[] = ['row' => $rowNumber, 'data' => $data, 'reason' => $reason];
                     $skipped++;
                     continue;
                 }
@@ -144,7 +145,9 @@ class ImportController extends Controller
                 $updated++;
             } else {
                 if ($mode === 'update') {
-                    $errors[] = "Row {$rowNumber}: no existing record for \"{$uniqueField}\" = \"{$data[$uniqueField]}\", skipped (mode is Update only).";
+                    $reason = "no existing record for \"{$uniqueField}\" = \"{$data[$uniqueField]}\"";
+                    $errors[] = "Row {$rowNumber}: {$reason}, skipped (mode is Update only).";
+                    $invalidRows[] = ['row' => $rowNumber, 'data' => $data, 'reason' => $reason];
                     $skipped++;
                     continue;
                 }
@@ -170,7 +173,13 @@ class ImportController extends Controller
 
         Storage::disk('local')->delete("imports/{$importId}.{$validated['extension']}");
 
-        return response()->json(compact('created', 'updated', 'skipped', 'errors'));
+        return response()->json([
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'invalid_rows' => $invalidRows,
+        ]);
     }
 
     private function readImport(string $importId, string $extension): array

@@ -24,7 +24,13 @@ const previewRows = ref<Record<string, string | null>[]>([]);
 const previewTotal = ref(0);
 const issues = ref<string[]>([]);
 
-const summary = ref<{ created: number; updated: number; skipped: number; errors: string[] } | null>(null);
+interface InvalidRow {
+    row: number;
+    data: Record<string, string | null>;
+    reason: string;
+}
+
+const summary = ref<{ created: number; updated: number; skipped: number; errors: string[]; invalid_rows: InvalidRow[] } | null>(null);
 
 const mappedFieldOptions = computed(() => {
     const keys = new Set<string>();
@@ -72,6 +78,34 @@ async function goToPreview(): Promise<void> {
     } finally {
         busy.value = false;
     }
+}
+
+function csvCell(value: string): string {
+    if (/[",\n]/.test(value)) {
+        return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+}
+
+function downloadInvalidRows(): void {
+    const rows = summary.value?.invalid_rows ?? [];
+    if (!rows.length) return;
+
+    const fields = Array.from(new Set(rows.flatMap((r) => Object.keys(r.data))));
+    const header = ['Row', ...fields.map(fieldLabel), 'Reason'];
+    const lines = [header.map(csvCell).join(',')];
+    for (const r of rows) {
+        const line = [String(r.row), ...fields.map((f) => r.data[f] ?? ''), r.reason];
+        lines.push(line.map(csvCell).join(','));
+    }
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'invalid-rows.csv';
+    link.click();
+    URL.revokeObjectURL(url);
 }
 
 async function commit(): Promise<void> {
@@ -192,6 +226,13 @@ async function commit(): Promise<void> {
                     <div v-if="summary.errors.length" class="mt-2 max-h-32 overflow-y-auto rounded border border-amber-200 bg-amber-50 p-2 text-left text-xs text-amber-800">
                         <p v-for="(e, i) in summary.errors" :key="i">{{ e }}</p>
                     </div>
+                    <button
+                        v-if="summary.invalid_rows.length"
+                        class="mt-1 rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        @click="downloadInvalidRows"
+                    >
+                        Download {{ summary.invalid_rows.length }} invalid row(s) as CSV
+                    </button>
                 </div>
             </div>
 
